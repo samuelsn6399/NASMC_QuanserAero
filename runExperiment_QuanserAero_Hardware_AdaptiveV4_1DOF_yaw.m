@@ -1,22 +1,25 @@
 clc;clear;close all;
 
-%% Model Parameters
-T = 40; % [s] run time
-DAQ_freq = 200; % [Hz] define the data acquisition frequency
+% Model Parameters
+T = 23; % [s] run time
+DAQ_freq = 500; % [Hz] define the data acquisition frequency
 DAQ_time = 1/DAQ_freq; % [s]
+time_offset = 2; % [s] wait before motor command is issued; waiting for pitch bias removal
+T_adjusted = T+time_offset; % [s] adjust the run time of the sim
 
-%% Configure Yaw and Pitch Commands
-cmd_select = [0,2]; % [0,0] = ['smooth' transition to constant (polynomial curve fit), yaw only]
-                    % [0,1] = ['smooth' transition to constant (polynomial curve fit), pitch only]
+% Configure Yaw and Pitch Commands
+cmd_select = [1,1]; % [0,0] = ['smooth' transition to constant (polynomial curve fit), pitch only]
+                    % [0,1] = ['smooth' transition to constant (polynomial curve fit), yaw only]
                     % [0,2] = ['smooth' transition to constant (polynomial curve fit), pitch and yaw]
                     % [1,0] = [harmonic oscilations, pitch only]
                     % [1,1] = [harmonic oscilations, yaw only]
                     % [1,2] = [harmonic oscilations, pitch and yaw]
-Ap_cmd = pi/9; % [rad] amplitude of pitch command
-Ay_cmd = pi/4; % [rad] amplitude of yaw command
-Tp_cmd = 10; % [s] response time or period of response for pitch
-Ty_cmd = 20; % [s] response time or period of response for yaw
-harmonic_cycles = 2; % [] run simulation for n oscilation cycles
+Ap_cmd = pi/4; % [rad] amplitude of pitch command
+Ay_cmd = pi/2; % [rad] amplitude of yaw command
+Tp_cmd = 5; % [s] response time or period of response for pitch
+Ty_cmd = 5; % [s] response time or period of response for yaw
+
+harmonic_cycles = 4; % [] run simulation for n oscilation cycles
 harmonic_cutoff_p = Tp_cmd*harmonic_cycles; % [s] sim time to stop oscilations
 harmonic_cutoff_y = Ty_cmd*harmonic_cycles; % [s] sim time to stop oscilations
 if cmd_select(1,1) == 0
@@ -40,39 +43,46 @@ a_cmd_coeff = [ap_cmd_coeff,ay_cmd_coeff];
 T_cmd = [Tp_cmd, Ty_cmd];
 A_cmd = [Ap_cmd, Ay_cmd];
 
-%% Controller Gains
-lambda_p = 2.5;       lambda_y = 2.5;
-D_p = 0*1.1;        D_y = 0*1.1;
-eta_p = 0.5;
-eta_y = 0.5;
-phi_para_p = 0.001;  phi_para_y = 0.001;
-% lambda_p = 1;       lambda_y = 1;
+% Controller Gains
+% lambda_p = 2.5;       lambda_y = 2.5;
 % D_p = 0*1.1;        D_y = 0*1.1;
 % eta_p = 0.5;
 % eta_y = 0.5;
-% phi_para_p = 1;  phi_para_y = 1;
-% 
+% phi_para_p = 0.001;  phi_para_y = 0.001;
+
+lambda_p = 10;       
+lambda_y = 7;
+D_p = 0*1.1;        D_y = 0*1.1;
+eta_p = 0.5;
+eta_y = 0.5;
+phi_para_p = 0.01;  phi_para_y = 0.01;
+
 control_gains = [lambda_p lambda_y;
                  D_p D_y;
                  eta_p eta_y;
                  phi_para_p phi_para_y];
 
-
-%% Turn-on Adaptation (0 == OFF)
+% Turn-on Adaptation (0 == OFF)
 % gamma0_p = 0.1;   gamma0_y = 0.1;
 % gamma1_p = 0.1;   gamma1_y = 0.1;
 % gamma2_p = 0.1;   gamma2_y = 0.1;
 % gamma3_p = 0.1;   gamma3_y = 0.1;
 % gamma4_p = 0.1;
 
-gamma_y_gain = 100;
-gamma_p_gain = 100;
+gamma_y_gain = 10;
+gamma_p_gain = 0;
 
-gamma0_p = gamma_p_gain/sqrt(0.1);     gamma0_y = gamma_y_gain/sqrt(0.1);
-gamma1_p = gamma_p_gain/sqrt(0.03);    gamma1_y = gamma_y_gain/sqrt(0.04);
-gamma2_p = gamma_p_gain/sqrt(0.8);   
-gamma3_p = gamma_p_gain/sqrt(500);     gamma2_y = gamma_y_gain/sqrt(400);   
-gamma4_p = gamma_p_gain/sqrt(10000);   gamma3_y = gamma_y_gain/sqrt(10000);
+% gamma0_p = gamma_p_gain/sqrt(0.1);     gamma0_y = gamma_y_gain/sqrt(0.1);
+% gamma1_p = gamma_p_gain/sqrt(0.03);    gamma1_y = gamma_y_gain/sqrt(0.04);
+% gamma2_p = gamma_p_gain/sqrt(0.8);   
+% gamma3_p = gamma_p_gain/sqrt(500);     gamma2_y = gamma_y_gain/sqrt(400);   
+% gamma4_p = gamma_p_gain/sqrt(10000);   gamma3_y = gamma_y_gain/sqrt(10000);
+
+gamma0_p = gamma_p_gain/1e0;     gamma0_y = gamma_y_gain/1e0;
+gamma1_p = gamma_p_gain/1e0;     gamma1_y = gamma_y_gain/1e0;
+gamma2_p = gamma_p_gain/9e-1;   
+gamma3_p = gamma_p_gain/1e3;     gamma2_y = gamma_y_gain/1e3; 
+gamma4_p = gamma_p_gain/1e5;     gamma3_y = gamma_y_gain/1e5;
 
 % gamma0_p = 0;   gamma0_y = 0;
 % gamma1_p = 0;   gamma1_y = 0;
@@ -83,7 +93,7 @@ gamma4_p = gamma_p_gain/sqrt(10000);   gamma3_y = gamma_y_gain/sqrt(10000);
 gamma_p = [gamma0_p;gamma1_p;gamma2_p;gamma3_p;gamma4_p];
 gamma_y = [gamma0_y;gamma1_y;gamma2_y;gamma3_y];
 
-%% Pitch Parameters
+% Pitch Parameters
 g = 9.81; % [m/s^2]
 m = 0.80+0.089+0.089; % [kg]
 kFF = 1.25e-6; % [unitless]
@@ -96,14 +106,19 @@ Dp = 0.00711; % [V-s/rad]
 kVF = 1/0.04222;
 % kVF = 1; % turn off kv effects
 
-%% Pitch haaaa
+% Pitch haaaa
 hp_hat = Jp/(kFF*dF*kVF^2);
-ap1_hat = Dp/(kFF*dF*kVF^2);
+% ap1_hat = Dp/(kFF*dF*kVF^2); SHOULD THIS BE POSITIVE OR NEGATIVE
+ap1_hat = -Dp/(kFF*dF*kVF^2);
 ap2_hat = m*g*dcm/(kFF*dF*kVF^2);
-ap3_hat = -kRT1/(kFF*dF*kVF^2);
-ap4_hat = -kRT2/(kFF*dF*kVF^2);
+% ap3_hat = -kRT1/(kFF*dF*kVF^2);
+% ap4_hat = -kRT2/(kFF*dF*kVF^2);
+% ap3_hat = kRT1/(kFF*dF*kVF^2);
+% ap4_hat = kRT2/(kFF*dF*kVF^2);
+ap3_hat = 0;
+ap4_hat = 0;
 
-%% Yaw Parameters
+% Yaw Parameters
 kFT1 = 1e-5; % [unitless]
 kFT2 = 1.25e-7; % [unitless]
 kRF = 1.25e-6; % [unitless]
@@ -113,14 +128,14 @@ Jy = 0.0370; % [kg-m^2]
 kVR = 1/0.04222; % [unitless]
 % kVR = 1; % turn off kv effects
 
-%% Yaw haaa
+% Yaw haaa
 hy_hat = Jy/(kRF*dR*kVR^2);
 ay1_hat = Dy/(kRF*dR*kVR^2);
-ay2_hat = -kFT1/(kRF*dR*kVR^2);
-ay3_hat = -kFT2/(kRF*dR*kVR^2);
-% ay3_hat = 0;
-
-%% Bundle Controller Params (Best Guess)
+% ay2_hat = -kFT1/(kRF*dR*kVR^2);
+% ay3_hat = -kFT2/(kRF*dR*kVR^2);
+ay2_hat = 0;
+ay3_hat = 0;
+% Bundle Controller Params (Best Guess)
 % params = [pitch params, yaw params]
 params_aero = [kFF kRF; % NOT USED IN MODEL
                kRT1 kFT1;
@@ -139,26 +154,6 @@ paramsGuess_haaaa = [hp_hat hy_hat; % Best guess to initialize controller and ad
                     ap3_hat ay3_hat;
                     ap4_hat 0];
 
-%% Inject Random Parameter Error
-% used to adjust the plant model to "truth" values
-% scenario: we do not understand our plant model, so we inject random
-%       variation to the plant parameters to model this lack of understanding.
-%       We take our best guess at the parameters to initialize the controller
-paramErrorMax = 10;
-paramErrorMin = 1/10;
-% set seed for repeatable random errors
-seedValue = 42; % pick any integer; change it for a new randomization pattern
-rng(seedValue, 'twister');
-paramsError_haaaa = paramErrorMin + (paramErrorMax-paramErrorMin).*rand(size(paramsGuess_haaaa));
-% paramsError_haaaa = 1;
-
-%% Bundle Plant Parameters (Truth)
-paramsTruth_haaaa = paramsGuess_haaaa.*paramsError_haaaa; % true paramter values for plant model
-
-%% Run Sim
-out=sim("model_QuanserAero_AdaptiveV3_SN.slx");
-% out=sim("model_QuanserAero_AdaptiveV3_21a_SN.mdl");
-
 %% Parse Data
 List=get(out);
 for No=1:1:length(List)
@@ -169,10 +164,6 @@ pitch(:,1) = rad2deg(states(1,1,:));
 pitchd(:,1) = rad2deg(states(2,1,:));
 yaw(:,1) = rad2deg(states(3,1,:));
 yawd(:,1) = rad2deg(states(4,1,:));
-% pitch(:,1) = rad2deg(states(:,1));
-% pitchd(:,1) = rad2deg(states(:,2));
-% yaw(:,1) = rad2deg(states(:,3));
-% yawd(:,1) = rad2deg(states(:,4));
 V_cmd = V;
 rotor(:,1) = Omega(1,1,:);
 rotor(:,2) = Omega(2,1,:);
